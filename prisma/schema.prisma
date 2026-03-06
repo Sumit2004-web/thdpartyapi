@@ -1,0 +1,258 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+enum AdminStatus {
+  Active @map("active")
+
+  @@map("admin_status")
+}
+
+model Admin {
+  id           Int         @id @default(autoincrement())
+  firstname    String
+  lastname     String
+  email        String      @unique
+  profileImage String?     @map("profile_image")
+  status       AdminStatus @default(Active)
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+  meta         AdminMeta?
+
+  @@map("admin")
+}
+
+model AdminMeta {
+  passwordSalt String? @map("password_salt")
+  passwordHash String? @map("password_hash")
+  admin        Admin   @relation(fields: [adminId], references: [id])
+  adminId      Int     @unique() @map("admin_id")
+
+  @@map("admin_meta")
+}
+
+enum UserStatus {
+  Active  @map("active")
+  Blocked @map("blocked")
+
+  @@map("user_status")
+}
+
+model User {
+  id           Int           @id @default(autoincrement())
+  firstname    String
+  lastname     String
+  username     String?       @unique
+  email        String        @unique
+  dialCode     String?       @map("dial_code")
+  mobile       String?       @unique
+  profileImage String?       @map("profile_image")
+  isVerified   Boolean       @default(false) @map("is_verified")
+  country      String?
+  status       UserStatus    @default(Active)
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+  meta         UserMeta?
+  settings     UserSetting[]
+
+  @@map("user")
+}
+
+model UserMeta {
+  googleId     String? @unique @map("google_id")
+  passwordSalt String? @map("password_salt")
+  passwordHash String? @map("password_hash")
+  user         User    @relation(fields: [userId], references: [id])
+  userId       Int     @unique() @map("user_id")
+
+  @@map("user_meta")
+}
+
+enum OtpTransport {
+  Email  @map("email")
+  Mobile @map("mobile")
+
+  @@map("otp_transport")
+}
+
+model Otp {
+  code             String
+  attempt          Int          @default(1) @db.SmallInt
+  lastSentAt       DateTime     @default(now()) @map("last_sent_at")
+  retries          Int          @default(0) @db.SmallInt
+  transport        OtpTransport
+  target           String
+  lastCodeVerified Boolean      @default(false) @map("last_code_verified")
+  blocked          Boolean      @default(false)
+
+  @@unique([transport, target])
+  @@map("otp")
+}
+
+enum SettingType {
+  Binary       @map("binary")
+  MultiSelect  @map("multi_select")
+  SingleSelect @map("single_select")
+
+  @@map("setting_type")
+}
+
+enum SettingContext {
+  User   @map("user")
+  System @map("System")
+
+  @@map("setting_context")
+}
+
+model Setting {
+  id               Int             @id @default(autoincrement())
+  mappedTo         String          @map("mapped_to")
+  text             String          @default("")
+  description      String          @default("")
+  type             SettingType
+  context          SettingContext
+  default          Json
+  isDefinedOptions Boolean         @map("is_defined_options")
+  subSettings      Setting[]       @relation("SubSettings")
+  dependsOn        Setting?        @relation("SubSettings", fields: [parentId], references: [id])
+  parentId         Int?            @map("parent_id")
+  options          SettingOption[]
+  userSettings     UserSetting[]
+  systemSettings   SystemSetting[]
+
+  @@unique([context, mappedTo])
+  @@map("setting")
+}
+
+model SettingOption {
+  id        Int     @id @default(autoincrement())
+  text      String  @default("")
+  value     String
+  setting   Setting @relation(fields: [settingId], references: [id])
+  settingId Int     @map("setting_id")
+
+  @@unique([settingId, value])
+  @@map("setting_option")
+}
+
+model UserSetting {
+  selection Json
+  user      User    @relation(fields: [userId], references: [id])
+  userId    Int     @map("user_id")
+  setting   Setting @relation(fields: [settingId], references: [id])
+  settingId Int     @map("setting_id")
+
+  @@id([userId, settingId])
+  @@map("user_setting")
+}
+
+model SystemSetting {
+  selection Json
+  setting   Setting @relation(fields: [settingId], references: [id])
+  settingId Int     @map("setting_id")
+
+  @@id([settingId])
+  @@map("system_setting")
+}
+
+model Competition {
+  id         Int      @id @default(autoincrement())
+  providerId Int      @unique @map("provider_id")
+  name       String
+  sportId    Int      @map("sport_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  events     Event[]
+
+  @@map("competition")
+}
+
+model Event {
+  id            Int      @id @default(autoincrement())
+  providerId    Int      @unique @map("provider_id")
+  name          String
+  openDate      DateTime @map("open_date")
+  active        Boolean
+  competitionId Int      @map("competition_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  competition   Competition @relation(fields: [competitionId], references: [id])
+  markets       Market[]
+  sessions      Session[]
+  @@map("event")
+}
+
+model Market {
+  id              Int       @id @default(autoincrement())
+  providerId      String    @unique
+  name            String
+  startTime       DateTime
+  totalMatched    Float?
+  eventId         Int
+  event           Event     @relation(fields: [eventId], references: [id])
+  runners         Runner[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+model Runner {
+  id           Int      @id @default(autoincrement())
+  providerId   String
+  name         String
+  handicap     Float
+  sortPriority Int
+  marketId     Int
+  market       Market   @relation(fields: [marketId], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([providerId, marketId])
+}
+
+// model Runner {
+//   id           Int      @id @default(autoincrement())
+//   providerId   String   @unique
+//   name         String
+//   handicap     Float?
+//   sortPriority Int?
+//   marketId     Int
+//   market       Market   @relation(fields: [marketId], references: [id])
+//   createdAt    DateTime @default(now())
+//   updatedAt    DateTime @updatedAt
+// }
+
+model Session {
+  id            Int      @id @default(autoincrement())
+  providerId    String
+  marketId      String
+  name          String
+
+  backPrice     Float?
+  layPrice      Float?
+  backSize      Float?
+  laySize       Float?
+
+  mname         String?
+  gtype         String?
+  sortPriority  Int?
+  providerTs    BigInt?
+
+  eventId       Int
+  event         Event    @relation(fields: [eventId], references: [id])
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([providerId, eventId])
+}
+

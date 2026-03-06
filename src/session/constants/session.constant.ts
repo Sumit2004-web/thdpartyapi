@@ -1,0 +1,2 @@
+export const SESSION_QUEUE = 'SESSION_QUEUE';
+export const SESSION_SYNC_JOB = 'SESSION_SYNC_JOB';
