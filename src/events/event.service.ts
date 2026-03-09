@@ -56,39 +56,47 @@ export class EventService {
     }
   }
 
+ 
   async removeClosedEvents() {
     try {
       const baseUrl = this.configService.get<string>('THIRD_PARTY_BASE_URL');
-      const sport = this.configService.get<string>('CLOSED_EVENT_SPORT') ?? 'Cricket';
+      const sportNames = this.configService.get<string>('SPORT_NAMES')?.split(',').map(s => s.trim()) || [];
 
-      const url = `${baseUrl}/event/closed-event?sport=${sport}`;
-      this.logger.log(`Fetching closed events from: ${url}`);
-
-      const response = await this.httpService.axiosRef.get<ClosedEventApiResponse>(url);
-
-      if (!Array.isArray(response.data) || response.data.length === 0) {
-        this.logger.log('No closed events returned from API.');
+      if (sportNames.length === 0) {
+        this.logger.warn('SPORT_NAMES env var is not set — skipping closed-event sync.');
         return;
       }
 
-      this.logger.log(`Found ${response.data.length} closed event(s) to deactivate.`);
+      for (const sport of sportNames) {
+        this.logger.log(`Fetching closed events for sport: ${sport}`);
 
-      for (const raw of response.data) {
-        const closed = mapClosedEvent(raw);
+        const url = `${baseUrl}/event/closed-event?sport=${sport}`;
+        const response = await this.httpService.axiosRef.get<ClosedEventApiResponse>(url);
 
-        const updated = await this.prismaService.event.updateMany({
-          where: { providerId: closed.providerId, active: true },
-          data:  { active: false },
-        });
-
-        if (updated.count > 0) {
-          this.logger.log(`Deactivated event "${closed.name}" (providerId: ${closed.providerId})`);
-        } else {
-          this.logger.debug(`Event "${closed.name}" (providerId: ${closed.providerId}) was already inactive or not found.`);
+        if (!Array.isArray(response.data) || response.data.length === 0) {
+          this.logger.log(`No closed events for sport: ${sport}`);
+          continue;
         }
-      }
 
-      this.logger.log('Closed-event sync completed.');
+        this.logger.log(`Found ${response.data.length} closed event(s) for sport: ${sport}`);
+
+        for (const raw of response.data) {
+          const closed = mapClosedEvent(raw);
+
+          const updated = await this.prismaService.event.updateMany({
+            where: { providerId: closed.providerId, active: true },
+            data:  { active: false },
+          });
+
+          if (updated.count > 0) {
+            this.logger.log(`Deactivated event "${closed.name}" (providerId: ${closed.providerId})`);
+          } else {
+            this.logger.debug(`Event "${closed.name}" (providerId: ${closed.providerId}) was already inactive or not found.`);
+          }
+        }
+
+        this.logger.log(`Closed-event sync completed for sport: ${sport}`);
+      }
     } catch (error) {
       this.logger.error('Closed-event sync error:', error);
     }
