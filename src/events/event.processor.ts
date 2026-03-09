@@ -1,4 +1,4 @@
-import { Event_Queue, SYNC_EVENT_JOB } from "./constants/event.constants";
+import { Event_Queue, REMOVE_CLOSED_EVENTS_JOB, SYNC_EVENT_JOB } from "./constants/event.constants";
 import { EventService } from "./event.service";
 import { Process,Processor } from "@nestjs/bull";
 
@@ -12,5 +12,11 @@ export class EventProcessor{
   async handleSync(){
     console.log("Event Processor triggered! ")
     await this.eventService.fetchAndStoreEvents()
+  }
+
+  @Process(REMOVE_CLOSED_EVENTS_JOB)
+  async handleRemoveClosedEvents() {
+    console.log("Closed-event Processor triggered!");
+    await this.eventService.removeClosedEvents();
   }
 }

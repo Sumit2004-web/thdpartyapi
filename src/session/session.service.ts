@@ -1,21 +1,24 @@
 import { HttpService } from "@nestjs/axios";
-import { Inject, Injectable } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { PrismaService } from "src/prisma";
 import { RedisService } from "src/redis";
+import { ThirdPartySession } from "./interface/session.interface";
+import { mapSession } from "./session.mapper";
 
 @Injectable()
 export class SessionService {
+  private readonly logger = new Logger(SessionService.name);
+
   constructor(
     private readonly prisma: PrismaService,
-     private readonly redis: RedisService,
+    private readonly redis: RedisService,
     private readonly http: HttpService,
     private readonly config: ConfigService,
   ) {}
 
   async syncInplaySessions() {
     const baseUrl = this.config.get<string>('THIRD_PARTY_BASE_URL');
-
     const inplayEvents = await this.redis.client.smembers('inplay:events');
 
     for (const providerEventId of inplayEvents) {
@@ -28,54 +31,23 @@ export class SessionService {
       const url = `${baseUrl}/fancy/get-by-event-id?eventId=${providerEventId}`;
 
       try {
-        const response = await this.http.axiosRef.get(url);
-        const sessions = response.data;
+        const response = await this.http.axiosRef.get<ThirdPartySession[]>(url);
 
-        if (!Array.isArray(sessions)) continue;
+        if (!Array.isArray(response.data)) continue;
 
-        for (const item of sessions) {
+        for (const raw of response.data) {
+          const session = mapSession(raw);
 
           await this.prisma.session.upsert({
-            where: {
-              providerId_eventId: {
-                providerId: item.SelectionId,
-                eventId: event.id,
-              },
-            },
-            update: {
-              name: item.RunnerName,
-              marketId: item.marketId,
-              backPrice: Number(item.BackPrice1),
-              layPrice: Number(item.LayPrice1),
-              backSize: Number(item.BackSize1),
-              laySize: Number(item.LaySize1),
-              mname: item.mname,
-              gtype: item.gtype,
-              sortPriority: Number(item.sortPriority),
-              providerTs: BigInt(item.timestamp),
-            },
-            create: {
-              providerId: item.SelectionId,
-              marketId: item.marketId,
-              name: item.RunnerName,
-              backPrice: Number(item.BackPrice1),
-              layPrice: Number(item.LayPrice1),
-              backSize: Number(item.BackSize1),
-              laySize: Number(item.LaySize1),
-              mname: item.mname,
-              gtype: item.gtype,
-              sortPriority: Number(item.sortPriority),
-              providerTs: BigInt(item.timestamp),
-              eventId: event.id,
-            },
+            where:  { providerId_eventId: { providerId: session.providerId, eventId: event.id } },
+            update:  { ...session, eventId: event.id },
+            create:  { ...session, eventId: event.id },
           });
-
         }
 
-        console.log(`Sessions synced for event ${providerEventId}`);
-
+        this.logger.log(`Sessions synced for event ${providerEventId}`);
       } catch (err) {
-        console.error(`Session sync error:${providerEventId}`, err.message);
+        this.logger.error(`Session sync error for event ${providerEventId}: ${err.message}`);
       }
     }
   }
