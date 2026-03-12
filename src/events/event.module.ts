@@ -9,18 +9,19 @@ import { EventService } from "./event.service";
 
 
 @Module({
-  imports:[
+  imports: [
     HttpModule,
-    BullModule.registerQueue({
-      name:Event_Queue
-    }),
-    PrismaModule
+    BullModule.registerQueue({ name: Event_Queue }),
+    PrismaModule,
   ],
-  providers:[
+  providers: [
     EventProcessor,
     EventScheduler,
-    EventService
+    EventService,
   ],
-  exports:[EventScheduler]
+  exports: [
+    EventScheduler,
+    EventService,                    // ← export service
+  ],
 })
-export class EventModule{}
+export class EventModule {}

@@ -10,16 +10,17 @@ import { HttpModule } from "@nestjs/axios";
 @Module({
   imports: [
     HttpModule,
-    BullModule.registerQueue({
-      name: MARKET_QUEUE
-    }),
-    PrismaModule
+    BullModule.registerQueue({ name: MARKET_QUEUE }),
+    PrismaModule,
   ],
   providers: [
     MarketService,
     MarketProcessor,
-    MarketScheduler
+    MarketScheduler,
   ],
-  exports:[MarketScheduler]
+  exports: [
+    MarketScheduler,
+    MarketService,                   // ← export service
+  ],
 })
 export class MarketModule {}

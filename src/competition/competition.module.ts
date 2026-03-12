@@ -14,16 +14,17 @@ import { PrismaModule } from 'src/prisma';
 @Module({
   imports: [
     HttpModule,
-    BullModule.registerQueue({
-      name: COMPETITION_QUEUE,
-    }),
-    PrismaModule
+    BullModule.registerQueue({ name: COMPETITION_QUEUE }),
+    PrismaModule,
   ],
   providers: [
     CompetitionService,
     CompetitionProcessor,
     CompetitionScheduler,
   ],
-  exports:[CompetitionScheduler]
+  exports: [
+    CompetitionScheduler,
+    CompetitionService,              // ← make the service available to importers
+  ],
 })
 export class CompetitionModule {}

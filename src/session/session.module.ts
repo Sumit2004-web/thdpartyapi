@@ -16,15 +16,16 @@ import { SessionScheduler } from './session.schedular';
     PrismaModule,
     RedisModule,
     HttpModule,
-    BullModule.registerQueue({
-      name: SESSION_QUEUE,
-    }),
+    BullModule.registerQueue({ name: SESSION_QUEUE }),
   ],
   providers: [
     SessionService,
     SessionProcessor,
     SessionScheduler,
   ],
-  exports:[SessionScheduler]
+  exports: [
+    SessionScheduler,
+    SessionService,                  // ← export service
+  ],
 })
 export class SessionModule {}
